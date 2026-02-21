@@ -1,0 +1,44 @@
+name: FakePlayersFolia
+version: "1.0.0"
+main: dev.fakeplayers.FakePlayersPlugin
+api-version: "1.21"
+folia-supported: true
+description: Simulates activity with fake players for Folia servers
+softdepend: [PlaceholderAPI]
+
+permissions:
+  fakeplayers.admin:
+    description: Full access to all FakePlayers commands
+    default: op
+    children:
+      fakeplayers.add: true
+      fakeplayers.remove: true
+      fakeplayers.list: true
+      fakeplayers.status: true
+      fakeplayers.reload: true
+  
+  fakeplayers.add:
+    description: Add fake players
+    default: op
+  
+  fakeplayers.remove:
+    description: Remove fake players
+    default: op
+  
+  fakeplayers.list:
+    description: List fake players
+    default: op
+  
+  fakeplayers.status:
+    description: View fake players status
+    default: op
+  
+  fakeplayers.reload:
+    description: Reload configuration
+    default: op
+
+commands:
+  fakeplayers:
+    description: Manage fake players
+    permission: fakeplayers.admin
+    aliases: [fp]

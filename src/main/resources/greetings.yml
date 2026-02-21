@@ -1,0 +1,57 @@
+# Greetings Configuration
+# Messages are randomly selected when fake players welcome new players
+# Use {player} as a placeholder for the joining player's name
+
+# Messages for players joining for the first time
+first-join:
+  - "Hey {player}! Welcome to the server!"
+  - "Welcome {player}! Nice to see a new face!"
+  - "Hi {player}, welcome aboard!"
+  - "Welcome {player}, enjoy your stay!"
+  - "Hey {player}! Glad you joined!"
+  - "Welcome {player}! Hope you like it here!"
+  - "Hi {player}! Welcome!"
+  - "{player} joined! Welcome!"
+  - "Hey {player}, welcome to the community!"
+  - "Welcome {player}! Have fun!"
+  - "Hi there {player}! Welcome!"
+  - "Welcome {player}! Nice to meet you!"
+  - "Hey {player}! You're new here, right? Welcome!"
+  - "Welcome {player}! Drop a hello in chat sometime!"
+  - "Hi {player}! Enjoy the server!"
+
+# Messages for returning players
+rejoin:
+  - "Welcome back {player}!"
+  - "Hey {player}, good to see you again!"
+  - "{player} is back! Welcome!"
+  - "wb {player}"
+  - "Hey {player}! Long time no see!"
+  - "Welcome back {player}!"
+  - "Hey {player}, you're back!"
+  - "{player} returned!"
+  - "wb {player}!"
+  - "Hey {player}! Back again?"
+  - "{player}! Welcome back!"
+  - "Good to see you again {player}!"
+  - "Hey {player}! We missed you!"
+  - "Welcome back {player}, how've you been?"
+  - "wb {player} hope you're doing well!"
+
+# Messages for /msg responses (when someone messages a fake player)
+msg-responses:
+  - "I'm busy right now, sorry!"
+  - "afk"
+  - "Can't talk right now"
+  - "..."
+  - "Not now"
+  - "brb"
+  - "busy"
+  - "ttyl"
+  - "maybe later"
+  - "sorry, can't"
+  - "not rn"
+  - "in a bit"
+  - "one sec"
+  - "hang on"
+  - "gimme a minute"
