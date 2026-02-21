@@ -8,7 +8,9 @@ server:
 
 # Activity settings
 activity:
-  # Minimum real players required before fake players become active
+  # Run fake player activity even when no real players are online
+  always-active: false
+  # Minimum real players required before fake players become active (ignored if always-active is true)
   min-real-players: 1
   # Maximum fake players allowed online at once
   max-fake-players: 20

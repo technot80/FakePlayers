@@ -43,6 +43,10 @@ public class Config {
         return yaml.getInt("activity.min-real-players", 1);
     }
 
+    public boolean isAlwaysActive() {
+        return yaml.getBoolean("activity.always-active", false);
+    }
+
     public int getMaxFakePlayers() {
         return yaml.getInt("activity.max-fake-players", 20);
     }

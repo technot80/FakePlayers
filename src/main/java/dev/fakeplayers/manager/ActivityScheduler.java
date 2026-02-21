@@ -89,7 +89,7 @@ public class ActivityScheduler {
         int realPlayers = getRealPlayerCount();
         int fakePlayers = fakePlayerManager.getFakePlayerCount();
 
-        if (realPlayers < config.getMinRealPlayers()) {
+        if (!config.isAlwaysActive() && realPlayers < config.getMinRealPlayers()) {
             return false;
         }
 
