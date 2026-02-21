@@ -3,6 +3,7 @@
 build/
 !gradle/wrapper/gradle-wrapper.jar
 gradle-dist/
+gradle-temp/
 g9/
 *.zip
 
