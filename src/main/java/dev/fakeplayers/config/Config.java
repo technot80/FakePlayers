@@ -5,10 +5,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.Map;
 
 public class Config {
 
@@ -135,14 +131,6 @@ public class Config {
 
     public int getWelcomeCooldown() {
         return yaml.getInt("welcome.cooldown", 60);
-    }
-
-    public List<String> getFirstJoinMessages() {
-        return yaml.getStringList("welcome.first-join-messages");
-    }
-
-    public List<String> getRejoinMessages() {
-        return yaml.getStringList("welcome.rejoin-messages");
     }
 
     public boolean isBotInvisible() {

@@ -34,6 +34,7 @@ quit:
   delay-max: 900
 
 # Welcome message behavior
+# Note: The actual messages are in greetings.yml
 welcome:
   enabled: true
   # Percent chance a fake player will welcome (0-100)
@@ -45,22 +46,6 @@ welcome:
   max-concurrent: 3
   # Cooldown before same player can be welcomed again (seconds)
   cooldown: 60
-
-  # Messages for first-time players
-  first-join-messages:
-    - "Hey {player}! Welcome to the server!"
-    - "Welcome {player}! Nice to see a new face!"
-    - "Hi {player}, welcome aboard!"
-    - "Welcome {player}, enjoy your stay!"
-    - "Hey {player}! Glad you joined!"
-
-  # Messages for returning players
-  rejoin-messages:
-    - "Welcome back {player}!"
-    - "Hey {player}, good to see you again!"
-    - "{player} is back!"
-    - "wb {player}"
-    - "Hey {player}! Long time no see!"
 
 # Bot settings
 bot:
