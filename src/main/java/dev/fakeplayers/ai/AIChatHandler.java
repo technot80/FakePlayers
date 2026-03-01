@@ -9,11 +9,12 @@ import dev.fakeplayers.manager.FakePlayerManager;
 import dev.fakeplayers.nms.FakePlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 public class AIChatHandler {
 
@@ -24,7 +25,7 @@ public class AIChatHandler {
     private final FakePlayerAI aiTracker;
     private final Map<String, ChatSession> sessions;
     private volatile boolean chatTaskRunning = false;
-    private BukkitRunnable chatTask;
+    private ScheduledTask chatTask;
 
     public AIChatHandler(FakePlayersPlugin plugin) {
         this.plugin = plugin;
@@ -80,16 +81,12 @@ public class AIChatHandler {
     }
 
     private void startChatTask() {
-        chatTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (!shouldChat()) {
-                    return;
-                }
-                runAiChatCycle();
+        chatTask = plugin.getServer().getAsyncScheduler().runAtFixedRate(plugin, scheduledTask -> {
+            if (!shouldChat()) {
+                return;
             }
-        };
-        chatTask.runTaskTimerAsynchronously(plugin, 100L, 100L);
+            runAiChatCycle();
+        }, 100L, 100L, TimeUnit.MILLISECONDS);
     }
 
     private boolean shouldChat() {
