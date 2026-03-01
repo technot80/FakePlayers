@@ -1,5 +1,8 @@
 # FakePlayersFolia Configuration
-# Simulates player activity on your server
+# Simulates player activity with fake players for Folia servers
+
+# Config version - DO NOT EDIT
+config-version: 2
 
 # Server connection (for reference, not used for NMS approach)
 server:
@@ -68,6 +71,25 @@ bot:
   no-collision: true
   # Hide from other players' view (tab only)
   hide-from-players: true
+
+# AI Chat settings
+# Requires AgentChatAPI plugin: https://github.com/technot80/AgentChatAPI
+ai:
+  # Enable AI chat features (requires AgentChatAPI to be installed and enabled)
+  enabled: false
+  # Number of fake players that can use AI chat (0 to disable)
+  enabled-ai-count: 5
+  # Chance for an online fake player to be selected for AI (0-100)
+  selection-chance: 50
+  # Minimum real players online before AI fake players start chatting
+  min-real-players: 1
+  # Delay in ticks between AI chat messages (20 ticks = 1 second)
+  chat-delay-min: 100
+  chat-delay-max: 300
+  # Chance an AI fake player will respond to real player chat (0-100)
+  response-chance: 30
+  # Chance AI fake players will chat amongst themselves (0-100)
+  self-chat-chance: 20
 
 # Debug mode (extra logging)
 debug: false

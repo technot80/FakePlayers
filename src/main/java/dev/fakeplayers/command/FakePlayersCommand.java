@@ -160,10 +160,8 @@ public class FakePlayersCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean handleReload(CommandSender sender) {
-        plugin.getPluginConfig().reload();
-        plugin.getGreetingsManager().load();
-        plugin.getNamePool().load();
-        sender.sendMessage(Component.text("Configuration reloaded!", NamedTextColor.GREEN));
+        plugin.reload();
+        sender.sendMessage(Component.text("Configuration and personalities reloaded!", NamedTextColor.GREEN));
         return true;
     }
 
