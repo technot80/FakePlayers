@@ -193,6 +193,8 @@ public class FakePlayersCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Component.text("AI Players: " + String.join(", ", aiPlayers), NamedTextColor.GRAY));
             }
             
+            sender.sendMessage(Component.text("Session Tokens: " + aiHandler.getTotalSessionTokens(), NamedTextColor.GRAY));
+            
             sender.sendMessage(Component.text("Inference: " + (aiHandler.isAnyInferenceRunning() ? "yes" : "no"), 
                 aiHandler.isAnyInferenceRunning() ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
         }

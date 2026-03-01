@@ -26,6 +26,7 @@ public class AIChatHandler {
     private final Map<String, ChatSession> sessions;
     private volatile boolean chatTaskRunning = false;
     private ScheduledTask chatTask;
+    private volatile long lastRealPlayerChatTime = 0L;
 
     public AIChatHandler(FakePlayersPlugin plugin) {
         this.plugin = plugin;
@@ -92,7 +93,7 @@ public class AIChatHandler {
             }
             
             runAiChatCycle();
-        }, 100L, 5000L, TimeUnit.MILLISECONDS);
+        }, 100L, 30000L, TimeUnit.MILLISECONDS);
     }
 
     private boolean shouldChat() {
@@ -143,19 +144,14 @@ public class AIChatHandler {
                 }
             }
         }
-        
-        if (aiTracker.getAiEnabledCount() > enabledCount) {
-            List<String> enabled = new ArrayList<>(aiTracker.getAiEnabledPlayers());
-            while (enabled.size() > enabledCount) {
-                String toRemove = enabled.remove(ThreadLocalRandom.current().nextInt(enabled.size()));
-                aiTracker.setAiEnabled(toRemove, false);
-                plugin.getLogger().info("Removed " + toRemove + " from AI chat (exceeded enabled count)");
-                endSession(toRemove);
-            }
-        }
     }
 
     private void handleInterPlayerChat() {
+        long now = System.currentTimeMillis();
+        if (now - lastRealPlayerChatTime < 10 * 60 * 1000L) {
+            return;
+        }
+
         Collection<FakePlayer> allFakes = fakePlayerManager.getAllFakePlayers();
         List<FakePlayer> aiFakes = new ArrayList<>();
         
@@ -188,6 +184,12 @@ public class AIChatHandler {
         if (!shouldChat()) {
             return;
         }
+
+        lastRealPlayerChatTime = System.currentTimeMillis();
+        
+        if (aiTracker.getAiEnabledCount() < config.getAiEnabledCount()) {
+            selectAiPlayers();
+        }
         
         aiTracker.clearStuckTalkers(0);
         
@@ -197,17 +199,28 @@ public class AIChatHandler {
             return;
         }
         
+        List<FakePlayer> eligible = new ArrayList<>();
+        boolean responded = false;
+
         for (FakePlayer fake : allFakes) {
             String fakeName = fake.getName();
-            
+
             if (aiTracker.isAiEnabled(fakeName) && !aiTracker.hasFailed(fakeName)) {
                 if (!aiTracker.isTalkingWithAI(fakeName)) {
+                    eligible.add(fake);
                     if (ThreadLocalRandom.current().nextInt(100) < config.getAiResponseChance()) {
                         plugin.getLogger().info("[AI] Responding to " + player.getName() + " as " + fakeName);
                         respondToPlayer(fake, player.getName(), message);
+                        responded = true;
                     }
                 }
             }
+        }
+
+        if (!responded && !eligible.isEmpty()) {
+            FakePlayer fallback = eligible.get(ThreadLocalRandom.current().nextInt(eligible.size()));
+            plugin.getLogger().info("[AI] Forcing response to " + player.getName() + " as " + fallback.getName());
+            respondToPlayer(fallback, player.getName(), message);
         }
     }
 
@@ -236,7 +249,7 @@ public class AIChatHandler {
                 
                 aiTracker.setTalkingWithAI(fakeName, false);
                 
-                plugin.getLogger().info("[AI] Response received for " + fakeName + ": success=" + response.isSuccess());
+                plugin.getLogger().info("[AI] Response for " + fakeName + ": " + response.getContent());
                 
                 if (!response.isSuccess()) {
                     plugin.getLogger().severe("AI chat error for " + fakeName + ": " + response.getErrorMessage());
@@ -251,7 +264,7 @@ public class AIChatHandler {
                 
                 reply = cleanResponse(reply);
                 if (!reply.isEmpty()) {
-                    plugin.getLogger().info("[AI] " + fakeName + " will say: " + reply);
+                    plugin.debug("[AI] " + fakeName + " will say: " + reply);
                     fakePlayerManager.chat(fake, reply);
                 }
             } catch (Exception e) {
@@ -283,6 +296,8 @@ public class AIChatHandler {
                 
                 aiTracker.setTalkingWithAI(fakeName, false);
                 
+                plugin.getLogger().info("[AI] Self-chat response for " + fakeName + ": " + response.getContent());
+                
                 if (!response.isSuccess()) {
                     plugin.getLogger().severe("AI self-chat error for " + fakeName + ": " + response.getErrorMessage());
                     return;
@@ -307,6 +322,7 @@ public class AIChatHandler {
         
         ChatSession session = sessions.get(sessionName);
         if (session != null) {
+            plugin.debug("Using existing session for " + fakePlayerName);
             return session;
         }
         
@@ -316,6 +332,7 @@ public class AIChatHandler {
         }
         
         try {
+            plugin.getLogger().info("Creating new chat session for " + fakePlayerName);
             session = ChatAPI.get().createSession(sessionName, personalityManager.buildFullPrompt(fakePlayerName));
             sessions.put(sessionName, session);
             return session;
@@ -392,6 +409,14 @@ public class AIChatHandler {
 
     public java.util.Set<String> getAiEnabledPlayerNames() {
         return aiTracker.getAiEnabledPlayers();
+    }
+
+    public int getTotalSessionTokens() {
+        int total = 0;
+        for (ChatSession session : sessions.values()) {
+            total += session.getApproximateTokenCount();
+        }
+        return total;
     }
 
     public boolean isAnyInferenceRunning() {
