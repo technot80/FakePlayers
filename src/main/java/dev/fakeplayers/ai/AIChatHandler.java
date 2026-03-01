@@ -264,8 +264,11 @@ public class AIChatHandler {
                 
                 reply = cleanResponse(reply);
                 if (!reply.isEmpty()) {
-                    plugin.debug("[AI] " + fakeName + " will say: " + reply);
-                    fakePlayerManager.chat(fake, reply);
+                    int delayTicks = ThreadLocalRandom.current().nextInt(20, 61);
+                    String delayedReply = reply;
+                    plugin.debug("[AI] " + fakeName + " will say in " + delayTicks + " ticks: " + delayedReply);
+                    plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task ->
+                        fakePlayerManager.chat(fake, delayedReply), delayTicks);
                 }
             } catch (Exception e) {
                 plugin.getLogger().severe("AI request failed for " + fakeName + ": " + e.getMessage());
@@ -307,7 +310,11 @@ public class AIChatHandler {
                 if (reply != null && !reply.isEmpty()) {
                     reply = cleanResponse(reply);
                     if (!reply.isEmpty()) {
-                        fakePlayerManager.chat(fake, reply);
+                        int delayTicks = ThreadLocalRandom.current().nextInt(20, 61);
+                        String delayedReply = reply;
+                        plugin.debug("[AI] Self-chat for " + fakeName + " in " + delayTicks + " ticks: " + delayedReply);
+                        plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task ->
+                            fakePlayerManager.chat(fake, delayedReply), delayTicks);
                     }
                 }
             } catch (Exception e) {
@@ -360,15 +367,28 @@ public class AIChatHandler {
 
     private String cleanResponse(String response) {
         String cleaned = response.trim();
+
+        cleaned = cleaned.replaceAll("\\*[^*]+\\*", "");
+        cleaned = cleaned.replaceAll("[\uD83C-\uDBFF\uDC00-\uDFFF]", "");
+        cleaned = cleaned.replaceAll("\s{2,}", " ").trim();
         
-        if (cleaned.length() > 200) {
-            int lastPeriod = cleaned.lastIndexOf('.', 200);
-            int lastSpace = cleaned.lastIndexOf(' ', 200);
-            int cutoff = Math.max(lastPeriod, lastSpace);
-            if (cutoff > 50) {
+        String lower = cleaned.toLowerCase();
+        if (lower.contains("come see") || lower.contains("come visit") || lower.contains("check out")) {
+            cleaned = cleaned.replaceAll("(?i)come see|come visit|check out", "");
+            cleaned = cleaned.replaceAll("\s{2,}", " ").trim();
+        }
+        
+        int maxLength = 256;
+        if (cleaned.length() > maxLength) {
+            int lastPeriod = cleaned.lastIndexOf('.', maxLength);
+            int lastExclamation = cleaned.lastIndexOf('!', maxLength);
+            int lastQuestion = cleaned.lastIndexOf('?', maxLength);
+            int lastSpace = cleaned.lastIndexOf(' ', maxLength);
+            int cutoff = Math.max(Math.max(lastPeriod, lastExclamation), Math.max(lastQuestion, lastSpace));
+            if (cutoff > 80) {
                 cleaned = cleaned.substring(0, cutoff + 1);
             } else {
-                cleaned = cleaned.substring(0, 200);
+                cleaned = cleaned.substring(0, maxLength);
             }
         }
         
