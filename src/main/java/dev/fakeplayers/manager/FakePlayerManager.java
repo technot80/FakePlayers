@@ -60,6 +60,10 @@ public class FakePlayerManager {
 
         fakePlayers.remove(fakePlayer.getUuid());
         fakePlayersByName.remove(fakePlayer.getName());
+        
+        if (plugin.getAiChatHandler() != null) {
+            plugin.getAiChatHandler().onFakePlayerRemoved(fakePlayer.getName());
+        }
 
         plugin.debug("Removed fake player: " + fakePlayer.getName());
     }

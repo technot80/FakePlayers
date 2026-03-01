@@ -4,7 +4,7 @@ main: dev.fakeplayers.FakePlayersPlugin
 api-version: "1.21"
 folia-supported: true
 description: Simulates activity with fake players for Folia servers
-softdepend: [PlaceholderAPI]
+softdepend: [PlaceholderAPI, AgentChatAPI]
 
 permissions:
   fakeplayers.admin:

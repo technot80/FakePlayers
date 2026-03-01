@@ -1,5 +1,8 @@
 # FakePlayersFolia Configuration
-# Simulates player activity on your server
+# Simulates player activity with fake players for Folia servers
+
+# Config version - DO NOT EDIT
+config-version: 2
 
 # Server connection (for reference, not used for NMS approach)
 server:
@@ -31,6 +34,7 @@ quit:
   delay-max: 900
 
 # Welcome message behavior
+# Note: The actual messages are in greetings.yml
 welcome:
   enabled: true
   # Percent chance a fake player will welcome (0-100)
@@ -43,22 +47,6 @@ welcome:
   # Cooldown before same player can be welcomed again (seconds)
   cooldown: 60
 
-  # Messages for first-time players
-  first-join-messages:
-    - "Hey {player}! Welcome to the server!"
-    - "Welcome {player}! Nice to see a new face!"
-    - "Hi {player}, welcome aboard!"
-    - "Welcome {player}, enjoy your stay!"
-    - "Hey {player}! Glad you joined!"
-
-  # Messages for returning players
-  rejoin-messages:
-    - "Welcome back {player}!"
-    - "Hey {player}, good to see you again!"
-    - "{player} is back!"
-    - "wb {player}"
-    - "Hey {player}! Long time no see!"
-
 # Bot settings
 bot:
   # Make bots invisible in-game
@@ -68,6 +56,25 @@ bot:
   no-collision: true
   # Hide from other players' view (tab only)
   hide-from-players: true
+
+# AI Chat settings
+# Requires AgentChatAPI plugin: https://github.com/technot80/AgentChatAPI
+ai:
+  # Enable AI chat features (requires AgentChatAPI to be installed and enabled)
+  enabled: false
+  # Number of fake players that can use AI chat (0 to disable)
+  enabled-ai-count: 5
+  # Chance for an online fake player to be selected for AI (0-100)
+  selection-chance: 50
+  # Minimum real players online before AI fake players start chatting
+  min-real-players: 1
+  # Delay in ticks between AI chat messages (20 ticks = 1 second)
+  chat-delay-min: 100
+  chat-delay-max: 300
+  # Chance an AI fake player will respond to real player chat (0-100)
+  response-chance: 30
+  # Chance AI fake players will chat amongst themselves (0-100)
+  self-chat-chance: 20
 
 # Debug mode (extra logging)
 debug: false

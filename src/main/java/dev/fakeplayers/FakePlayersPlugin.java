@@ -1,5 +1,7 @@
 package dev.fakeplayers;
 
+import dev.fakeplayers.ai.AIChatHandler;
+import dev.fakeplayers.ai.PersonalityManager;
 import dev.fakeplayers.config.Config;
 import dev.fakeplayers.config.GreetingsManager;
 import dev.fakeplayers.manager.NamePool;
@@ -8,6 +10,7 @@ import dev.fakeplayers.manager.ActivityScheduler;
 import dev.fakeplayers.listener.PlayerConnectionListener;
 import dev.fakeplayers.listener.WelcomeHandler;
 import dev.fakeplayers.listener.CommandListener;
+import dev.fakeplayers.listener.AIChatListener;
 import dev.fakeplayers.command.FakePlayersCommand;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -25,6 +28,8 @@ public class FakePlayersPlugin extends JavaPlugin {
     private NamePool namePool;
     private FakePlayerManager fakePlayerManager;
     private ActivityScheduler activityScheduler;
+    private PersonalityManager personalityManager;
+    private AIChatHandler aiChatHandler;
 
     @Override
     public void onEnable() {
@@ -41,15 +46,22 @@ public class FakePlayersPlugin extends JavaPlugin {
         this.namePool = new NamePool(this);
         this.fakePlayerManager = new FakePlayerManager(this);
         this.activityScheduler = new ActivityScheduler(this);
+        this.personalityManager = new PersonalityManager(this);
+        this.aiChatHandler = new AIChatHandler(this);
+
+        personalityManager.load();
 
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this), this);
         getServer().getPluginManager().registerEvents(new WelcomeHandler(this), this);
         getServer().getPluginManager().registerEvents(new CommandListener(this), this);
+        getServer().getPluginManager().registerEvents(new AIChatListener(this), this);
 
         getCommand("fakeplayers").setExecutor(new FakePlayersCommand(this));
         getCommand("fakeplayers").setTabCompleter(new FakePlayersCommand(this));
 
         activityScheduler.start();
+        
+        aiChatHandler.start();
 
         setupPlaceholderAPI();
 
@@ -98,6 +110,9 @@ public class FakePlayersPlugin extends JavaPlugin {
         }
         if (fakePlayerManager != null) {
             fakePlayerManager.removeAll();
+        }
+        if (aiChatHandler != null) {
+            aiChatHandler.stop();
         }
         getLogger().info("FakePlayersFolia has been disabled!");
     }
@@ -157,6 +172,27 @@ public class FakePlayersPlugin extends JavaPlugin {
 
     public ActivityScheduler getActivityScheduler() {
         return activityScheduler;
+    }
+
+    public PersonalityManager getPersonalityManager() {
+        return personalityManager;
+    }
+
+    public AIChatHandler getAiChatHandler() {
+        return aiChatHandler;
+    }
+
+    public void reload() {
+        config.reload();
+        greetingsManager.load();
+        namePool.load();
+        personalityManager.load();
+        
+        if (aiChatHandler != null) {
+            aiChatHandler.onReload();
+        }
+        
+        getLogger().info("Configuration and personalities reloaded!");
     }
 
     public void debug(String message) {

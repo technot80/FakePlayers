@@ -7,7 +7,7 @@ A Minecraft plugin for Folia 1.21+ that simulates fake players to make servers a
 - **Fake Players in Tab List** - Uses NMS packet manipulation to show fake players without physical entities
 - **Join/Quit Messages** - Broadcasts realistic join/quit messages when fake players are added/removed
 - **Welcome Messages** - Fake players send welcome messages when real players join
-- **/msg Interception** - Intercepts private messages to fake players with realistic responses
+- **AI Chat Support** - Give fake players AI-powered conversations using [AgentChatAPI](https://github.com/technot80/AgentChatAPI)
 - **Activity Scheduler** - Randomly adds/removes fake players over time (only active when minimum real players online)
 - **PlaceholderAPI Support** - Expose fake player counts via placeholders
 - **Fully Folia Compatible** - Uses Folia's schedulers for async operations
@@ -16,14 +16,15 @@ A Minecraft plugin for Folia 1.21+ that simulates fake players to make servers a
 
 - **Server:** Folia 1.21.11+
 - **Java:** 21+
-- **Soft Dependencies:** PlaceholderAPI (optional)
+- **Soft Dependencies:** PlaceholderAPI (optional), [AgentChatAPI](https://github.com/technot80/AgentChatAPI) (optional, for AI chat)
 
 ## Installation
 
 1. Download the latest release
 2. Place `FakePlayersFolia-1.0.0-reobf.jar` in your server's `plugins` folder
-3. Start the server
-4. Configure settings in `plugins/FakePlayersFolia/config.yml`
+3. (Optional) Download [AgentChatAPI](https://github.com/technot80/AgentChatAPI/releases) for AI chat features
+4. Start the server
+5. Configure settings in `plugins/FakePlayersFolia/config.yml`
 
 ## Commands
 
@@ -33,7 +34,7 @@ A Minecraft plugin for Folia 1.21+ that simulates fake players to make servers a
 | `/fp remove <name\|all>` | Remove a fake player or all fake players | `fakeplayers.remove` |
 | `/fp list` | List all online fake players | `fakeplayers.list` |
 | `/fp status` | Show real/fake player counts | `fakeplayers.status` |
-| `/fp reload` | Reload all configuration files | `fakeplayers.reload` |
+| `/fp reload` | Reload all configuration files and personalities | `fakeplayers.reload` |
 
 ## Permissions
 
@@ -46,6 +47,57 @@ A Minecraft plugin for Folia 1.21+ that simulates fake players to make servers a
 | `fakeplayers.status` | View status | op |
 | `fakeplayers.reload` | Reload configuration | op |
 
+## AI Chat (Optional)
+
+Fake players can have AI-powered conversations when AgentChatAPI is installed.
+
+### Setup
+
+1. Install [AgentChatAPI](https://github.com/technot80/AgentChatAPI) on your server
+2. Configure your API key in AgentChatAPI's `config.yml`
+3. Set `ai.enabled-ai-count` in FakePlayersFolia's `config.yml`
+
+### Configuration
+
+```yaml
+ai:
+  # Number of fake players that can use AI chat (0 to disable)
+  enabled-ai-count: 5
+  # Chance for an online fake player to be selected for AI (0-100)
+  selection-chance: 50
+  # Minimum real players online before AI fake players start chatting
+  min-real-players: 1
+  # Delay in ticks between AI chat messages (20 ticks = 1 second)
+  chat-delay-min: 100
+  chat-delay-max: 300
+  # Chance an AI fake player will respond to real player chat (0-100)
+  response-chance: 30
+  # Chance AI fake players will chat amongst themselves (0-100)
+  self-chat-chance: 20
+```
+
+### Personalities
+
+Each fake player gets an AI personality. On first run, personalities are automatically generated (one per name in your name list). You can edit these in:
+
+```
+plugins/FakePlayersFolia/personalities/
+```
+
+Each file is named after the fake player (e.g., `steve.txt`, `alex.txt`) and contains their personality description. Edit these files to customize how each fake player acts.
+
+The global system prompt ensures AI fake players:
+- Never reveal they're AI
+- Never write code or solve math
+- Avoid politics and controversial topics
+- Stay friendly and never use swear words
+- Keep responses short and natural
+
+Reload personalities after editing:
+```
+/fp reload
+```
+
 ## Configuration
 
 ### config.yml
@@ -55,7 +107,7 @@ A Minecraft plugin for Folia 1.21+ that simulates fake players to make servers a
 activity:
   # Run fake player activity even when no real players are online
   always-active: false
-  # Minimum real players required before fake players become active (ignored if always-active is true)
+  # Minimum real players required before fake players become active
   min-real-players: 1
   # Maximum fake players allowed online at once
   max-fake-players: 20
@@ -65,11 +117,11 @@ When `always-active: true`, fake players will continue joining and quitting rand
 
 ### name-list.yml
 
-Contains the pool of names for fake players. Names are randomly selected from this list. Edit to customize your fake player names.
+Contains the pool of names for fake players. Names are randomly selected from this list. Each name gets its own AI personality file.
 
 ### greetings.yml
 
-Customize welcome messages and /msg responses:
+Customize welcome messages:
 
 ```yaml
 # Messages for first-time players
@@ -81,12 +133,6 @@ first-join:
 rejoin:
   - "Welcome back {player}!"
   - "Hey {player}, good to see you again!"
-
-# Responses when someone /msg's a fake player
-msg-responses:
-  - "afk"
-  - "busy"
-  - "ttyl"
 ```
 
 ## PlaceholderAPI
@@ -114,7 +160,8 @@ Output: `build/libs/FakePlayersFolia-1.0.0-reobf.jar`
 - Uses NMS packet manipulation (`ClientboundPlayerInfoUpdatePacket`) to show fake players in the tab list
 - Fake players have no physical entity in the world (invisible, no collision)
 - All async tasks use Folia's `GlobalRegionScheduler` for compatibility
-- The `bot.*` settings in config currently have no effect as fake players are packet-based only
+- AI chat uses AgentChatAPI - if not installed, AI features are silently disabled
+- Personalities are generated per-name from the name list and persist across restarts
 
 ## License
 
