@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class PersonalityManager {
 
@@ -24,6 +26,8 @@ public class PersonalityManager {
     private final Map<String, String> personalities;
     private final File personalityFolder;
     private String globalSystemPrompt;
+    private final ExecutorService executor;
+    private volatile boolean generationComplete = false;
 
     private static final String GENERATOR_PROMPT = """
         You are a personality generator for Minecraft fake players. 
@@ -47,6 +51,7 @@ public class PersonalityManager {
         this.namePool = plugin.getNamePool();
         this.personalities = new HashMap<>();
         this.personalityFolder = new File(plugin.getDataFolder(), "personalities");
+        this.executor = Executors.newSingleThreadExecutor();
         
         if (!personalityFolder.exists()) {
             personalityFolder.mkdirs();
@@ -64,8 +69,22 @@ public class PersonalityManager {
         }
         
         loadPersonalities();
+    }
+
+    public void startGenerationAsync() {
+        if (!config.isAiEnabled()) {
+            return;
+        }
         
-        generateMissingPersonalities();
+        if (!isApiAvailable()) {
+            plugin.getLogger().warning("AgentChatAPI not available. Cannot generate personalities.");
+            return;
+        }
+        
+        executor.submit(() -> {
+            generateMissingPersonalities();
+            generationComplete = true;
+        });
     }
 
     private String loadSystemPrompt() {
@@ -131,18 +150,16 @@ public class PersonalityManager {
         plugin.getLogger().info("Loaded " + personalities.size() + " personalities");
     }
 
-    public void generateMissingPersonalities() {
+    private void generateMissingPersonalities() {
         if (!config.isAiEnabled()) {
             return;
         }
         
         if (!isApiAvailable()) {
-            plugin.getLogger().warning("AgentChatAPI not available. Cannot generate personalities.");
             return;
         }
         
         List<String> names = namePool.getNames();
-        int generated = 0;
         
         for (String name : names) {
             if (personalities.containsKey(name)) {
@@ -160,8 +177,9 @@ public class PersonalityManager {
             if (personality != null) {
                 try {
                     Files.writeString(personalityFile.toPath(), personality);
-                    personalities.put(name, personality);
-                    generated++;
+                    synchronized (personalities) {
+                        personalities.put(name, personality);
+                    }
                     plugin.getLogger().info("Generated personality for: " + name);
                 } catch (IOException e) {
                     plugin.getLogger().severe("Failed to save personality for " + name + ": " + e.getMessage());
@@ -169,9 +187,7 @@ public class PersonalityManager {
             }
         }
         
-        if (generated > 0) {
-            plugin.getLogger().info("Generated " + generated + " new personalities");
-        }
+        plugin.getLogger().info("Personality generation complete!");
     }
 
     private String generatePersonality(String name) {
@@ -256,5 +272,9 @@ public class PersonalityManager {
 
     public String getGlobalSystemPrompt() {
         return globalSystemPrompt;
+    }
+
+    public void shutdown() {
+        executor.shutdown();
     }
 }
