@@ -51,48 +51,17 @@ A Minecraft plugin for Folia 1.21+ that simulates fake players to make servers a
 ### config.yml
 
 ```yaml
-# Server connection (for reference)
-server:
-  host: "localhost"
-  port: 25565
-
 # Activity settings
 activity:
-  min-real-players: 1    # Minimum real players before fakes activate
-  max-fake-players: 20   # Maximum fake players at once
-
-# Join behavior
-join:
-  delay-min: 30          # Minimum seconds between joins
-  delay-max: 120         # Maximum seconds between joins
-  chance: 100            # Percent chance per cycle (0-100)
-
-# Quit behavior
-quit:
-  enabled: true
-  delay-min: 300         # Minimum seconds before auto-quit
-  delay-max: 900         # Maximum seconds before auto-quit
-
-# Welcome message behavior
-welcome:
-  enabled: true
-  chance: 50             # Percent chance to welcome (0-100)
-  delay-min: 2           # Minimum seconds after join
-  delay-max: 8           # Maximum seconds after join
-  max-concurrent: 3      # Max fake players that welcome at once
-  cooldown: 60           # Cooldown before same player welcomed again
-
-# Bot settings
-bot:
-  invisible: true
-  invulnerable: true
-  no-gravity: true
-  no-collision: true
-  hide-from-players: true
-
-# Debug mode
-debug: false
+  # Run fake player activity even when no real players are online
+  always-active: false
+  # Minimum real players required before fake players become active (ignored if always-active is true)
+  min-real-players: 1
+  # Maximum fake players allowed online at once
+  max-fake-players: 20
 ```
+
+When `always-active: true`, fake players will continue joining and quitting randomly even when no real players are online. When `false` (default), fake players only become active when at least `min-real-players` are online.
 
 ### name-list.yml
 
