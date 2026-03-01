@@ -183,6 +183,22 @@ public class FakePlayersCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("Max fake players: " + plugin.getPluginConfig().getMaxFakePlayers(), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Min real players: " + plugin.getPluginConfig().getMinRealPlayers(), NamedTextColor.GRAY));
 
+        if (plugin.getPluginConfig().isAiGloballyEnabled()) {
+            var aiHandler = plugin.getAiChatHandler();
+            sender.sendMessage(Component.text("AI Enabled: true", NamedTextColor.GREEN));
+            sender.sendMessage(Component.text("Selected for AI: " + aiHandler.getAiEnabledPlayerCount(), NamedTextColor.AQUA));
+            
+            var aiPlayers = aiHandler.getAiEnabledPlayerNames();
+            if (!aiPlayers.isEmpty()) {
+                sender.sendMessage(Component.text("AI Players: " + String.join(", ", aiPlayers), NamedTextColor.GRAY));
+            }
+            
+            sender.sendMessage(Component.text("Session Tokens: " + aiHandler.getTotalSessionTokens(), NamedTextColor.GRAY));
+            
+            sender.sendMessage(Component.text("Inference: " + (aiHandler.isAnyInferenceRunning() ? "yes" : "no"), 
+                aiHandler.isAnyInferenceRunning() ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
+        }
+
         return true;
     }
 

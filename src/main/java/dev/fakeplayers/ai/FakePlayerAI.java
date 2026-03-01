@@ -2,7 +2,9 @@ package dev.fakeplayers.ai;
 
 import dev.fakeplayers.nms.FakePlayer;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -10,12 +12,12 @@ public class FakePlayerAI {
 
     private final Set<String> aiEnabledPlayers;
     private final Set<String> failedPlayers;
-    private final Set<String> talkingWithAI;
+    private final Map<String, Long> talkingWithAI;
 
     public FakePlayerAI() {
         this.aiEnabledPlayers = ConcurrentHashMap.newKeySet();
         this.failedPlayers = ConcurrentHashMap.newKeySet();
-        this.talkingWithAI = ConcurrentHashMap.newKeySet();
+        this.talkingWithAI = new ConcurrentHashMap<>();
     }
 
     public void setAiEnabled(String playerName, boolean enabled) {
@@ -44,14 +46,14 @@ public class FakePlayerAI {
 
     public void setTalkingWithAI(String playerName, boolean talking) {
         if (talking) {
-            talkingWithAI.add(playerName);
+            talkingWithAI.put(playerName, System.currentTimeMillis());
         } else {
             talkingWithAI.remove(playerName);
         }
     }
 
     public boolean isTalkingWithAI(String playerName) {
-        return talkingWithAI.contains(playerName);
+        return talkingWithAI.containsKey(playerName);
     }
 
     public void removePlayer(String playerName) {
@@ -76,5 +78,21 @@ public class FakePlayerAI {
 
     public Set<String> getAiEnabledPlayers() {
         return new HashSet<>(aiEnabledPlayers);
+    }
+
+    public boolean isAnyTalkingWithAI() {
+        return !talkingWithAI.isEmpty();
+    }
+
+    public int clearStuckTalkers(long timeoutMillis) {
+        int cleared = 0;
+        long now = System.currentTimeMillis();
+        for (Map.Entry<String, Long> entry : talkingWithAI.entrySet()) {
+            if (now - entry.getValue() > timeoutMillis) {
+                talkingWithAI.remove(entry.getKey());
+                cleared++;
+            }
+        }
+        return cleared;
     }
 }

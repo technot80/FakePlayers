@@ -9,11 +9,12 @@ import dev.fakeplayers.manager.FakePlayerManager;
 import dev.fakeplayers.nms.FakePlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 public class AIChatHandler {
 
@@ -24,7 +25,8 @@ public class AIChatHandler {
     private final FakePlayerAI aiTracker;
     private final Map<String, ChatSession> sessions;
     private volatile boolean chatTaskRunning = false;
-    private BukkitRunnable chatTask;
+    private ScheduledTask chatTask;
+    private volatile long lastRealPlayerChatTime = 0L;
 
     public AIChatHandler(FakePlayersPlugin plugin) {
         this.plugin = plugin;
@@ -80,16 +82,18 @@ public class AIChatHandler {
     }
 
     private void startChatTask() {
-        chatTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (!shouldChat()) {
-                    return;
-                }
-                runAiChatCycle();
+        chatTask = plugin.getServer().getAsyncScheduler().runAtFixedRate(plugin, scheduledTask -> {
+            if (!shouldChat()) {
+                return;
             }
-        };
-        chatTask.runTaskTimerAsynchronously(plugin, 100L, 100L);
+            
+            int cleared = aiTracker.clearStuckTalkers(60000);
+            if (cleared > 0) {
+                plugin.getLogger().info("[AI] Cleared " + cleared + " stuck agents");
+            }
+            
+            runAiChatCycle();
+        }, 100L, 30000L, TimeUnit.MILLISECONDS);
     }
 
     private boolean shouldChat() {
@@ -114,6 +118,7 @@ public class AIChatHandler {
         chatTaskRunning = true;
 
         try {
+            aiTracker.clearStuckTalkers(60000);
             selectAiPlayers();
             handleInterPlayerChat();
         } finally {
@@ -135,22 +140,18 @@ public class AIChatHandler {
             if (!aiTracker.isAiEnabled(name) && aiTracker.getAiEnabledCount() < enabledCount) {
                 if (ThreadLocalRandom.current().nextInt(100) < config.getAiSelectionChance()) {
                     aiTracker.setAiEnabled(name, true);
-                    plugin.debug("Enabled AI for: " + name);
+                    plugin.getLogger().info("Selected " + name + " for AI chat");
                 }
-            }
-        }
-        
-        if (aiTracker.getAiEnabledCount() > enabledCount) {
-            List<String> enabled = new ArrayList<>(aiTracker.getAiEnabledPlayers());
-            while (enabled.size() > enabledCount) {
-                String toRemove = enabled.remove(ThreadLocalRandom.current().nextInt(enabled.size()));
-                aiTracker.setAiEnabled(toRemove, false);
-                endSession(toRemove);
             }
         }
     }
 
     private void handleInterPlayerChat() {
+        long now = System.currentTimeMillis();
+        if (now - lastRealPlayerChatTime < 10 * 60 * 1000L) {
+            return;
+        }
+
         Collection<FakePlayer> allFakes = fakePlayerManager.getAllFakePlayers();
         List<FakePlayer> aiFakes = new ArrayList<>();
         
@@ -183,81 +184,122 @@ public class AIChatHandler {
         if (!shouldChat()) {
             return;
         }
+
+        lastRealPlayerChatTime = System.currentTimeMillis();
+        
+        if (aiTracker.getAiEnabledCount() < config.getAiEnabledCount()) {
+            selectAiPlayers();
+        }
+        
+        aiTracker.clearStuckTalkers(0);
         
         Collection<FakePlayer> allFakes = fakePlayerManager.getAllFakePlayers();
         
+        if (allFakes.isEmpty()) {
+            return;
+        }
+        
+        List<FakePlayer> eligible = new ArrayList<>();
+        boolean responded = false;
+
         for (FakePlayer fake : allFakes) {
             String fakeName = fake.getName();
-            
+
             if (aiTracker.isAiEnabled(fakeName) && !aiTracker.hasFailed(fakeName)) {
                 if (!aiTracker.isTalkingWithAI(fakeName)) {
+                    eligible.add(fake);
                     if (ThreadLocalRandom.current().nextInt(100) < config.getAiResponseChance()) {
+                        plugin.getLogger().info("[AI] Responding to " + player.getName() + " as " + fakeName);
                         respondToPlayer(fake, player.getName(), message);
+                        responded = true;
                     }
                 }
             }
+        }
+
+        if (!responded && !eligible.isEmpty()) {
+            FakePlayer fallback = eligible.get(ThreadLocalRandom.current().nextInt(eligible.size()));
+            plugin.getLogger().info("[AI] Forcing response to " + player.getName() + " as " + fallback.getName());
+            respondToPlayer(fallback, player.getName(), message);
         }
     }
 
     private void respondToPlayer(FakePlayer fake, String playerName, String message) {
         String fakeName = fake.getName();
-        String sessionName = getSessionName(fakeName);
         
         aiTracker.setTalkingWithAI(fakeName, true);
         
         ChatSession session = getOrCreateSession(fakeName);
         
         if (session == null) {
+            plugin.getLogger().warning("No session available for " + fakeName + ", cannot respond");
+            aiTracker.setTalkingWithAI(fakeName, false);
             return;
         }
         
         String prompt = "<" + playerName + "> " + message;
         
-        session.sendMessage(prompt).thenAccept(response -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
+        plugin.debug("Sending prompt to AI for " + fakeName + ": " + prompt);
+        
+        plugin.getServer().getAsyncScheduler().runNow(plugin, scheduledTask -> {
+            try {
+                plugin.getLogger().info("[AI] Waiting for response from " + fakeName + "...");
+                
+                ChatResponse response = session.sendMessage(prompt).join();
+                
                 aiTracker.setTalkingWithAI(fakeName, false);
+                
+                plugin.getLogger().info("[AI] Response for " + fakeName + ": " + response.getContent());
                 
                 if (!response.isSuccess()) {
                     plugin.getLogger().severe("AI chat error for " + fakeName + ": " + response.getErrorMessage());
-                    
-                    if (response.getErrorMessage() != null && 
-                        (response.getErrorMessage().toLowerCase().contains("rate") ||
-                         response.getErrorMessage().toLowerCase().contains("429") ||
-                         response.getErrorMessage().toLowerCase().contains("limit"))) {
-                        aiTracker.markFailed(fakeName);
-                        plugin.getLogger().warning("Marking " + fakeName + " as failed due to rate limiting");
-                    }
                     return;
                 }
                 
                 String reply = response.getContent();
-                if (reply != null && !reply.isEmpty()) {
-                    reply = cleanResponse(reply);
-                    if (!reply.isEmpty()) {
-                        fakePlayerManager.chat(fake, reply);
-                    }
+                if (reply == null || reply.isEmpty()) {
+                    plugin.getLogger().warning("AI response was empty for " + fakeName);
+                    return;
                 }
-            });
+                
+                reply = cleanResponse(reply);
+                if (!reply.isEmpty()) {
+                    int delayTicks = ThreadLocalRandom.current().nextInt(20, 61);
+                    String delayedReply = reply;
+                    plugin.debug("[AI] " + fakeName + " will say in " + delayTicks + " ticks: " + delayedReply);
+                    plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task ->
+                        fakePlayerManager.chat(fake, delayedReply), delayTicks);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().severe("AI request failed for " + fakeName + ": " + e.getMessage());
+                aiTracker.setTalkingWithAI(fakeName, false);
+            }
         });
     }
-
+    
     private void fakePlayerChat(FakePlayer fake, String target) {
         String fakeName = fake.getName();
-        String sessionName = getSessionName(fakeName);
         
         aiTracker.setTalkingWithAI(fakeName, true);
         
         ChatSession session = getOrCreateSession(fakeName);
         
         if (session == null) {
+            aiTracker.setTalkingWithAI(fakeName, false);
             return;
         }
         
         String prompt = "A nearby player says: Hey " + target + ", what's up? Respond naturally.";
         
-        session.sendMessage(prompt).thenAccept(response -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
+        plugin.debug("Sending prompt to AI for self-chat: " + fakeName);
+        
+        plugin.getServer().getAsyncScheduler().runNow(plugin, scheduledTask -> {
+            try {
+                ChatResponse response = session.sendMessage(prompt).join();
+                
                 aiTracker.setTalkingWithAI(fakeName, false);
+                
+                plugin.getLogger().info("[AI] Self-chat response for " + fakeName + ": " + response.getContent());
                 
                 if (!response.isSuccess()) {
                     plugin.getLogger().severe("AI self-chat error for " + fakeName + ": " + response.getErrorMessage());
@@ -268,10 +310,17 @@ public class AIChatHandler {
                 if (reply != null && !reply.isEmpty()) {
                     reply = cleanResponse(reply);
                     if (!reply.isEmpty()) {
-                        fakePlayerManager.chat(fake, reply);
+                        int delayTicks = ThreadLocalRandom.current().nextInt(20, 61);
+                        String delayedReply = reply;
+                        plugin.debug("[AI] Self-chat for " + fakeName + " in " + delayTicks + " ticks: " + delayedReply);
+                        plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task ->
+                            fakePlayerManager.chat(fake, delayedReply), delayTicks);
                     }
                 }
-            });
+            } catch (Exception e) {
+                plugin.getLogger().severe("AI self-chat failed for " + fakeName + ": " + e.getMessage());
+                aiTracker.setTalkingWithAI(fakeName, false);
+            }
         });
     }
 
@@ -280,6 +329,7 @@ public class AIChatHandler {
         
         ChatSession session = sessions.get(sessionName);
         if (session != null) {
+            plugin.debug("Using existing session for " + fakePlayerName);
             return session;
         }
         
@@ -289,6 +339,7 @@ public class AIChatHandler {
         }
         
         try {
+            plugin.getLogger().info("Creating new chat session for " + fakePlayerName);
             session = ChatAPI.get().createSession(sessionName, personalityManager.buildFullPrompt(fakePlayerName));
             sessions.put(sessionName, session);
             return session;
@@ -316,15 +367,28 @@ public class AIChatHandler {
 
     private String cleanResponse(String response) {
         String cleaned = response.trim();
+
+        cleaned = cleaned.replaceAll("\\*[^*]+\\*", "");
+        cleaned = cleaned.replaceAll("[\uD83C-\uDBFF\uDC00-\uDFFF]", "");
+        cleaned = cleaned.replaceAll("\s{2,}", " ").trim();
         
-        if (cleaned.length() > 200) {
-            int lastPeriod = cleaned.lastIndexOf('.', 200);
-            int lastSpace = cleaned.lastIndexOf(' ', 200);
-            int cutoff = Math.max(lastPeriod, lastSpace);
-            if (cutoff > 50) {
+        String lower = cleaned.toLowerCase();
+        if (lower.contains("come see") || lower.contains("come visit") || lower.contains("check out")) {
+            cleaned = cleaned.replaceAll("(?i)come see|come visit|check out", "");
+            cleaned = cleaned.replaceAll("\s{2,}", " ").trim();
+        }
+        
+        int maxLength = 256;
+        if (cleaned.length() > maxLength) {
+            int lastPeriod = cleaned.lastIndexOf('.', maxLength);
+            int lastExclamation = cleaned.lastIndexOf('!', maxLength);
+            int lastQuestion = cleaned.lastIndexOf('?', maxLength);
+            int lastSpace = cleaned.lastIndexOf(' ', maxLength);
+            int cutoff = Math.max(Math.max(lastPeriod, lastExclamation), Math.max(lastQuestion, lastSpace));
+            if (cutoff > 80) {
                 cleaned = cleaned.substring(0, cutoff + 1);
             } else {
-                cleaned = cleaned.substring(0, 200);
+                cleaned = cleaned.substring(0, maxLength);
             }
         }
         
@@ -334,6 +398,9 @@ public class AIChatHandler {
     }
 
     public void onFakePlayerRemoved(String fakePlayerName) {
+        if (aiTracker.isAiEnabled(fakePlayerName)) {
+            plugin.getLogger().info("Removed " + fakePlayerName + " from AI chat (player removed)");
+        }
         aiTracker.removePlayer(fakePlayerName);
         endSession(fakePlayerName);
     }
@@ -358,5 +425,25 @@ public class AIChatHandler {
 
     public int getAiEnabledPlayerCount() {
         return aiTracker.getAiEnabledCount();
+    }
+
+    public java.util.Set<String> getAiEnabledPlayerNames() {
+        return aiTracker.getAiEnabledPlayers();
+    }
+
+    public int getTotalSessionTokens() {
+        int total = 0;
+        for (ChatSession session : sessions.values()) {
+            total += session.getApproximateTokenCount();
+        }
+        return total;
+    }
+
+    public boolean isAnyInferenceRunning() {
+        return aiTracker.isAnyTalkingWithAI();
+    }
+
+    public boolean isAiEnabled() {
+        return config.isAiGloballyEnabled();
     }
 }

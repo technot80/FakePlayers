@@ -50,6 +50,7 @@ public class FakePlayersPlugin extends JavaPlugin {
         this.aiChatHandler = new AIChatHandler(this);
 
         personalityManager.load();
+        personalityManager.startGenerationAsync();
 
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this), this);
         getServer().getPluginManager().registerEvents(new WelcomeHandler(this), this);
@@ -113,6 +114,9 @@ public class FakePlayersPlugin extends JavaPlugin {
         }
         if (aiChatHandler != null) {
             aiChatHandler.stop();
+        }
+        if (personalityManager != null) {
+            personalityManager.shutdown();
         }
         getLogger().info("FakePlayersFolia has been disabled!");
     }
