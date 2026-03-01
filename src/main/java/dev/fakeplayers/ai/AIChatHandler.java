@@ -85,8 +85,14 @@ public class AIChatHandler {
             if (!shouldChat()) {
                 return;
             }
+            
+            int cleared = aiTracker.clearStuckTalkers(60000);
+            if (cleared > 0) {
+                plugin.getLogger().info("[AI] Cleared " + cleared + " stuck agents");
+            }
+            
             runAiChatCycle();
-        }, 100L, 100L, TimeUnit.MILLISECONDS);
+        }, 100L, 5000L, TimeUnit.MILLISECONDS);
     }
 
     private boolean shouldChat() {
@@ -111,6 +117,7 @@ public class AIChatHandler {
         chatTaskRunning = true;
 
         try {
+            aiTracker.clearStuckTalkers(60000);
             selectAiPlayers();
             handleInterPlayerChat();
         } finally {
@@ -132,7 +139,7 @@ public class AIChatHandler {
             if (!aiTracker.isAiEnabled(name) && aiTracker.getAiEnabledCount() < enabledCount) {
                 if (ThreadLocalRandom.current().nextInt(100) < config.getAiSelectionChance()) {
                     aiTracker.setAiEnabled(name, true);
-                    plugin.debug("Enabled AI for: " + name);
+                    plugin.getLogger().info("Selected " + name + " for AI chat");
                 }
             }
         }
@@ -142,6 +149,7 @@ public class AIChatHandler {
             while (enabled.size() > enabledCount) {
                 String toRemove = enabled.remove(ThreadLocalRandom.current().nextInt(enabled.size()));
                 aiTracker.setAiEnabled(toRemove, false);
+                plugin.getLogger().info("Removed " + toRemove + " from AI chat (exceeded enabled count)");
                 endSession(toRemove);
             }
         }
@@ -181,7 +189,13 @@ public class AIChatHandler {
             return;
         }
         
+        aiTracker.clearStuckTalkers(0);
+        
         Collection<FakePlayer> allFakes = fakePlayerManager.getAllFakePlayers();
+        
+        if (allFakes.isEmpty()) {
+            return;
+        }
         
         for (FakePlayer fake : allFakes) {
             String fakeName = fake.getName();
@@ -189,6 +203,7 @@ public class AIChatHandler {
             if (aiTracker.isAiEnabled(fakeName) && !aiTracker.hasFailed(fakeName)) {
                 if (!aiTracker.isTalkingWithAI(fakeName)) {
                     if (ThreadLocalRandom.current().nextInt(100) < config.getAiResponseChance()) {
+                        plugin.getLogger().info("[AI] Responding to " + player.getName() + " as " + fakeName);
                         respondToPlayer(fake, player.getName(), message);
                     }
                 }
@@ -198,62 +213,74 @@ public class AIChatHandler {
 
     private void respondToPlayer(FakePlayer fake, String playerName, String message) {
         String fakeName = fake.getName();
-        String sessionName = getSessionName(fakeName);
         
         aiTracker.setTalkingWithAI(fakeName, true);
         
         ChatSession session = getOrCreateSession(fakeName);
         
         if (session == null) {
+            plugin.getLogger().warning("No session available for " + fakeName + ", cannot respond");
+            aiTracker.setTalkingWithAI(fakeName, false);
             return;
         }
         
         String prompt = "<" + playerName + "> " + message;
         
-        session.sendMessage(prompt).thenAccept(response -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
+        plugin.debug("Sending prompt to AI for " + fakeName + ": " + prompt);
+        
+        plugin.getServer().getAsyncScheduler().runNow(plugin, scheduledTask -> {
+            try {
+                plugin.getLogger().info("[AI] Waiting for response from " + fakeName + "...");
+                
+                ChatResponse response = session.sendMessage(prompt).join();
+                
                 aiTracker.setTalkingWithAI(fakeName, false);
+                
+                plugin.getLogger().info("[AI] Response received for " + fakeName + ": success=" + response.isSuccess());
                 
                 if (!response.isSuccess()) {
                     plugin.getLogger().severe("AI chat error for " + fakeName + ": " + response.getErrorMessage());
-                    
-                    if (response.getErrorMessage() != null && 
-                        (response.getErrorMessage().toLowerCase().contains("rate") ||
-                         response.getErrorMessage().toLowerCase().contains("429") ||
-                         response.getErrorMessage().toLowerCase().contains("limit"))) {
-                        aiTracker.markFailed(fakeName);
-                        plugin.getLogger().warning("Marking " + fakeName + " as failed due to rate limiting");
-                    }
                     return;
                 }
                 
                 String reply = response.getContent();
-                if (reply != null && !reply.isEmpty()) {
-                    reply = cleanResponse(reply);
-                    if (!reply.isEmpty()) {
-                        fakePlayerManager.chat(fake, reply);
-                    }
+                if (reply == null || reply.isEmpty()) {
+                    plugin.getLogger().warning("AI response was empty for " + fakeName);
+                    return;
                 }
-            });
+                
+                reply = cleanResponse(reply);
+                if (!reply.isEmpty()) {
+                    plugin.getLogger().info("[AI] " + fakeName + " will say: " + reply);
+                    fakePlayerManager.chat(fake, reply);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().severe("AI request failed for " + fakeName + ": " + e.getMessage());
+                aiTracker.setTalkingWithAI(fakeName, false);
+            }
         });
     }
-
+    
     private void fakePlayerChat(FakePlayer fake, String target) {
         String fakeName = fake.getName();
-        String sessionName = getSessionName(fakeName);
         
         aiTracker.setTalkingWithAI(fakeName, true);
         
         ChatSession session = getOrCreateSession(fakeName);
         
         if (session == null) {
+            aiTracker.setTalkingWithAI(fakeName, false);
             return;
         }
         
         String prompt = "A nearby player says: Hey " + target + ", what's up? Respond naturally.";
         
-        session.sendMessage(prompt).thenAccept(response -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
+        plugin.debug("Sending prompt to AI for self-chat: " + fakeName);
+        
+        plugin.getServer().getAsyncScheduler().runNow(plugin, scheduledTask -> {
+            try {
+                ChatResponse response = session.sendMessage(prompt).join();
+                
                 aiTracker.setTalkingWithAI(fakeName, false);
                 
                 if (!response.isSuccess()) {
@@ -268,7 +295,10 @@ public class AIChatHandler {
                         fakePlayerManager.chat(fake, reply);
                     }
                 }
-            });
+            } catch (Exception e) {
+                plugin.getLogger().severe("AI self-chat failed for " + fakeName + ": " + e.getMessage());
+                aiTracker.setTalkingWithAI(fakeName, false);
+            }
         });
     }
 
@@ -331,6 +361,9 @@ public class AIChatHandler {
     }
 
     public void onFakePlayerRemoved(String fakePlayerName) {
+        if (aiTracker.isAiEnabled(fakePlayerName)) {
+            plugin.getLogger().info("Removed " + fakePlayerName + " from AI chat (player removed)");
+        }
         aiTracker.removePlayer(fakePlayerName);
         endSession(fakePlayerName);
     }
@@ -355,5 +388,17 @@ public class AIChatHandler {
 
     public int getAiEnabledPlayerCount() {
         return aiTracker.getAiEnabledCount();
+    }
+
+    public java.util.Set<String> getAiEnabledPlayerNames() {
+        return aiTracker.getAiEnabledPlayers();
+    }
+
+    public boolean isAnyInferenceRunning() {
+        return aiTracker.isAnyTalkingWithAI();
+    }
+
+    public boolean isAiEnabled() {
+        return config.isAiGloballyEnabled();
     }
 }
